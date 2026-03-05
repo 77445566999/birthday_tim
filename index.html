@@ -14,8 +14,6 @@ font-family:sans-serif;
 color:white;
 }
 
-/* 摄像头 */
-
 #camera{
 position:fixed;
 top:0;
@@ -24,8 +22,6 @@ width:100vw;
 height:100vh;
 object-fit:cover;
 }
-
-/* Tim透卡 */
 
 #tim{
 position:fixed;
@@ -38,8 +34,6 @@ pointer-events:none;
 transition:all .4s ease;
 }
 
-/* 漂浮动画 */
-
 @keyframes float{
 0%{transform:translate(-50%,0)}
 50%{transform:translate(-50%,-12px)}
@@ -49,8 +43,6 @@ transition:all .4s ease;
 .float{
 animation:float 3s ease-in-out infinite;
 }
-
-/* 按钮 */
 
 #start{
 position:fixed;
@@ -65,17 +57,15 @@ border:none;
 border-radius:8px;
 }
 
-/* 字幕 */
-
-#subtitle{
+#hint{
 position:fixed;
 bottom:28%;
 left:50%;
 transform:translateX(-50%);
-font-size:20px;
 background:rgba(0,0,0,0.6);
 padding:8px 16px;
 border-radius:10px;
+font-size:18px;
 }
 
 </style>
@@ -91,7 +81,7 @@ border-radius:10px;
 
 <audio id="thanks" src="thanks.mp3"></audio>
 
-<div id="subtitle">等待语音…</div>
+<div id="hint">对着手机说：生日快乐</div>
 
 <script>
 
@@ -99,7 +89,7 @@ const video=document.getElementById("camera");
 const tim=document.getElementById("tim");
 const thanks=document.getElementById("thanks");
 const startBtn=document.getElementById("start");
-const subtitle=document.getElementById("subtitle");
+const hint=document.getElementById("hint");
 
 let triggered=false;
 
@@ -116,7 +106,7 @@ audio:true
 
 video.srcObject=stream;
 
-startRecognition();
+startAudioDetect(stream);
 
 startBtn.style.display="none";
 
@@ -128,46 +118,31 @@ alert("请允许摄像头和麦克风权限");
 
 }
 
-function startRecognition(){
+function startAudioDetect(stream){
 
-const SpeechRecognition=
-window.SpeechRecognition||
-window.webkitSpeechRecognition;
+const audioContext=new AudioContext();
+const mic=audioContext.createMediaStreamSource(stream);
+const analyser=audioContext.createAnalyser();
 
-if(!SpeechRecognition){
+analyser.fftSize=512;
 
-alert("浏览器不支持语音识别，请使用Chrome");
+mic.connect(analyser);
 
-return;
+const data=new Uint8Array(analyser.frequencyBinCount);
 
+function detect(){
+
+analyser.getByteFrequencyData(data);
+
+let volume=0;
+
+for(let i=0;i<data.length;i++){
+volume+=data[i];
 }
 
-const recognition=new SpeechRecognition();
+volume=volume/data.length;
 
-recognition.lang="zh-CN";
-recognition.continuous=true;
-recognition.interimResults=true;
-
-recognition.onstart=function(){
-console.log("语音识别启动");
-subtitle.innerText="正在听…";
-};
-
-recognition.onresult=function(event){
-
-let text="";
-
-for(let i=event.resultIndex;i<event.results.length;i++){
-text+=event.results[i][0].transcript;
-}
-
-subtitle.innerText=text;
-
-console.log("识别到:",text);
-
-/* 关键词触发 */
-
-if(!triggered && text.match(/生日|happy|birthday/i)){
+if(!triggered && volume>40){
 
 triggered=true;
 
@@ -175,33 +150,19 @@ triggerTim();
 
 }
 
-};
-
-recognition.onerror=function(e){
-
-console.log("识别错误:",e);
-
-};
-
-recognition.onend=function(){
-
-if(!triggered){
-recognition.start();
-}
-
-};
-
-recognition.start();
+requestAnimationFrame(detect);
 
 }
 
-/* Tim反应 */
+detect();
+
+}
 
 function triggerTim(){
 
-subtitle.innerText="生日快乐！";
-
 tim.src="tim_smile.png";
+
+hint.innerText="生日快乐！";
 
 thanks.play();
 
