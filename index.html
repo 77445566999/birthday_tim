@@ -42,6 +42,19 @@ body{
     font-size:18px;
     padding:10px 20px;
 }
+
+/* 识别状态提示 */
+#status{
+    position:absolute;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+    color:white;
+    font-size:14px;
+    background:rgba(0,0,0,0.6);
+    padding:10px 20px;
+    border-radius:5px;
+}
 </style>
 </head>
 
@@ -54,6 +67,9 @@ body{
 <img id="tim" src="tim_idle.png">
 
 <button id="startBtn" onclick="startAll()">开始</button>
+
+<!-- 识别状态 -->
+<div id="status" style="display:none;">正在监听...</div>
 
 <script>
 
@@ -72,7 +88,6 @@ async function startCamera(){
     }catch(e){
         alert("摄像头或麦克风权限被拒绝");
     }
-
 }
 
 
@@ -94,7 +109,8 @@ function startAll(){
     recognition.start();
 
     document.getElementById("startBtn").style.display="none";
-
+    
+    document.getElementById("status").style.display="block";
 }
 
 
@@ -105,7 +121,7 @@ recognition.onresult=function(event){
 
     console.log("识别到："+text);
 
-    if(text.includes("生日") && text.includes("快乐")){
+    if(text.includes("生日") && text.includes("快乐")){ 
 
         let tim=document.getElementById("tim");
 
@@ -114,17 +130,30 @@ recognition.onresult=function(event){
         tim.style.transform="translateX(-50%) scale(1.1)";
 
         new Audio("thanks.mp3").play();
+        
+        console.log("检测到生日祝福！");
+
+        // 2秒后恢复原样
+        setTimeout(() => {
+            tim.src="tim_idle.png";
+            tim.style.transform="translateX(-50%)";
+        }, 2000);
 
     }
+};
 
+
+/* 识别结束后自动重启 */
+recognition.onend=function(){
+    console.log("识别已结束，重新启动...");
+    recognition.start();
 };
 
 
 /* 出错自动重启 */
-recognition.onerror=function(){
-
+recognition.onerror=function(event){
+    console.log("识别出错："+event.error);
     recognition.start();
-
 };
 
 </script>
