@@ -6,12 +6,12 @@
 <title>Tim Birthday</title>
 
 <style>
-
 body{
 margin:0;
 overflow:hidden;
 background:black;
 font-family:sans-serif;
+color:white;
 }
 
 /* 摄像头 */
@@ -65,6 +65,19 @@ border:none;
 border-radius:8px;
 }
 
+/* 字幕 */
+
+#subtitle{
+position:fixed;
+bottom:28%;
+left:50%;
+transform:translateX(-50%);
+font-size:20px;
+background:rgba(0,0,0,0.6);
+padding:8px 16px;
+border-radius:10px;
+}
+
 </style>
 </head>
 
@@ -78,12 +91,15 @@ border-radius:8px;
 
 <audio id="thanks" src="thanks.mp3"></audio>
 
+<div id="subtitle">等待语音…</div>
+
 <script>
 
-const video = document.getElementById("camera");
-const tim = document.getElementById("tim");
-const thanks = document.getElementById("thanks");
-const startBtn = document.getElementById("start");
+const video=document.getElementById("camera");
+const tim=document.getElementById("tim");
+const thanks=document.getElementById("thanks");
+const startBtn=document.getElementById("start");
+const subtitle=document.getElementById("subtitle");
 
 let triggered=false;
 
@@ -93,12 +109,12 @@ async function startApp(){
 
 try{
 
-const stream = await navigator.mediaDevices.getUserMedia({
+const stream=await navigator.mediaDevices.getUserMedia({
 video:{facingMode:"environment"},
 audio:true
 });
 
-video.srcObject = stream;
+video.srcObject=stream;
 
 startRecognition();
 
@@ -114,41 +130,44 @@ alert("请允许摄像头和麦克风权限");
 
 function startRecognition(){
 
-const SpeechRecognition =
-window.SpeechRecognition ||
+const SpeechRecognition=
+window.SpeechRecognition||
 window.webkitSpeechRecognition;
 
 if(!SpeechRecognition){
 
-alert("当前浏览器不支持语音识别，请使用 Chrome");
+alert("浏览器不支持语音识别，请使用Chrome");
 
 return;
 
 }
 
-const recognition = new SpeechRecognition();
+const recognition=new SpeechRecognition();
 
 recognition.lang="zh-CN";
 recognition.continuous=true;
-recognition.interimResults=false;
+recognition.interimResults=true;
+
+recognition.onstart=function(){
+console.log("语音识别启动");
+subtitle.innerText="正在听…";
+};
 
 recognition.onresult=function(event){
 
-const text=event.results[event.resultIndex][0].transcript;
+let text="";
+
+for(let i=event.resultIndex;i<event.results.length;i++){
+text+=event.results[i][0].transcript;
+}
+
+subtitle.innerText=text;
 
 console.log("识别到:",text);
 
-/* 触发关键词 */
+/* 关键词触发 */
 
-if(
-!triggered &&
-(
-text.includes("生日快乐") ||
-text.includes("提姆生日快乐") ||
-text.includes("祝你生日快乐") ||
-text.includes("happy birthday")
-)
-){
+if(!triggered && text.match(/生日|happy|birthday/i)){
 
 triggered=true;
 
@@ -159,11 +178,17 @@ triggerTim();
 };
 
 recognition.onerror=function(e){
-console.log("语音识别错误",e);
+
+console.log("识别错误:",e);
+
 };
 
 recognition.onend=function(){
+
+if(!triggered){
 recognition.start();
+}
+
 };
 
 recognition.start();
@@ -173,6 +198,8 @@ recognition.start();
 /* Tim反应 */
 
 function triggerTim(){
+
+subtitle.innerText="生日快乐！";
 
 tim.src="tim_smile.png";
 
