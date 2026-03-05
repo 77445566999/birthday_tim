@@ -54,6 +54,25 @@ body{
     background:rgba(0,0,0,0.6);
     padding:10px 20px;
     border-radius:5px;
+    max-width:300px;
+    text-align:center;
+}
+
+/* 调试信息 */
+#debug{
+    position:absolute;
+    top:100px;
+    left:50%;
+    transform:translateX(-50%);
+    color:#00ff00;
+    font-size:12px;
+    background:rgba(0,0,0,0.8);
+    padding:10px 15px;
+    border-radius:5px;
+    max-width:400px;
+    max-height:200px;
+    overflow-y:auto;
+    font-family:monospace;
 }
 </style>
 </head>
@@ -71,22 +90,39 @@ body{
 <!-- 识别状态 -->
 <div id="status" style="display:none;">正在监听...</div>
 
+<!-- 调试信息 -->
+<div id="debug" style="display:none;"></div>
+
 <script>
+
+let recognitionActive = false;
+
+function log(message){
+    console.log(message);
+    const debugDiv = document.getElementById("debug");
+    debugDiv.innerHTML += message + "<br>";
+    debugDiv.scrollTop = debugDiv.scrollHeight;
+}
 
 /* 打开摄像头 */
 async function startCamera(){
 
     try{
+        log("正在请求摄像头权限...");
 
         const stream = await navigator.mediaDevices.getUserMedia({
-            video:true,
+            video:{
+                facingMode: 'environment'  // 使用背面摄像头
+            },
             audio:true
         });
 
+        log("摄像头已打开");
         document.getElementById("camera").srcObject = stream;
 
     }catch(e){
-        alert("摄像头或麦克风权限被拒绝");
+        log("错误: " + e.message);
+        alert("摄像头或麦克风权限被拒绝: " + e.message);
     }
 }
 
@@ -94,66 +130,112 @@ async function startCamera(){
 /* 语音识别 */
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+if(!SpeechRecognition){
+    alert("您的浏览器不支持语音识别");
+}
+
 let recognition = new SpeechRecognition();
 
 recognition.lang="zh-CN";
 recognition.continuous=true;
-recognition.interimResults=false;
+recognition.interimResults=true;  // 显示中间结果便于调试
 
 
 /* 开始按钮 */
-function startAll(){
+async function startAll(){
 
-    startCamera();
-
-    recognition.start();
-
+    log("开始启动...");
     document.getElementById("startBtn").style.display="none";
-    
     document.getElementById("status").style.display="block";
+    document.getElementById("debug").style.display="block";
+
+    await startCamera();
+
+    // 延迟1秒后启动识别，确保摄像头已初始化
+    setTimeout(() => {
+        log("启动语音识别...");
+        try{
+            recognition.start();
+            recognitionActive = true;
+            log("语音识别已启动");
+        }catch(e){
+            log("启动识别失败: " + e.message);
+        }
+    }, 1000);
 }
 
 
 /* 识别结果 */
-recognition.onresult=function(event){
+recognition.onstart = function(){
+    log("识别已启动，请说话...");
+};
 
-    let text = event.results[event.results.length-1][0].transcript;
+recognition.onresult = function(event){
+    
+    let interimTranscript = '';
+    let finalTranscript = '';
 
-    console.log("识别到："+text);
-
-    if(text.includes("生日") && text.includes("快乐")){ 
-
-        let tim=document.getElementById("tim");
-
-        tim.src="tim_smile.png";
-
-        tim.style.transform="translateX(-50%) scale(1.1)";
-
-        new Audio("thanks.mp3").play();
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
         
-        console.log("检测到生日祝福！");
+        if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+        } else {
+            interimTranscript += transcript;
+        }
+    }
 
-        // 2秒后恢复原样
-        setTimeout(() => {
-            tim.src="tim_idle.png";
-            tim.style.transform="translateX(-50%)";
-        }, 2000);
+    if(interimTranscript){
+        log("听到（临时）: " + interimTranscript);
+    }
 
+    if(finalTranscript){
+        log("识别到: " + finalTranscript);
+
+        // 检查是否包含"生日"和"快乐"（更灵活的匹配）
+        if((finalTranscript.includes("生日") || finalTranscript.includes("birthday")) && 
+           (finalTranscript.includes("快乐") || finalTranscript.includes("happy"))){
+
+            log("🎉 检测到生日祝福！");
+
+            let tim = document.getElementById("tim");
+
+            tim.src = "tim_smile.png";
+            tim.style.transform = "translateX(-50%) scale(1.1)";
+
+            try{
+                new Audio("thanks.mp3").play();
+                log("播放音频");
+            }catch(e){
+                log("音频播放失败: " + e.message);
+            }
+
+            // 2秒后恢复原样
+            setTimeout(() => {
+                tim.src = "tim_idle.png";
+                tim.style.transform = "translateX(-50%)";
+                log("已恢复");
+            }, 2000);
+        }
     }
 };
 
-
-/* 识别结束后自动重启 */
-recognition.onend=function(){
-    console.log("识别已结束，重新启动...");
-    recognition.start();
+recognition.onend = function(){
+    log("识别已结束，3秒后重新启动...");
+    if(recognitionActive){
+        setTimeout(() => {
+            try{
+                recognition.start();
+                log("已重新启动");
+            }catch(e){
+                log("重启失败: " + e.message);
+            }
+        }, 3000);
+    }
 };
 
-
-/* 出错自动重启 */
-recognition.onerror=function(event){
-    console.log("识别出错："+event.error);
-    recognition.start();
+recognition.onerror = function(event){
+    log("❌ 识别错误: " + event.error);
 };
 
 </script>
