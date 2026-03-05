@@ -14,7 +14,7 @@ background:black;
 font-family:sans-serif;
 }
 
-/* 摄像头画面 */
+/* 摄像头 */
 
 #camera{
 position:fixed;
@@ -35,9 +35,22 @@ transform:translateX(-50%);
 width:60vw;
 max-width:420px;
 pointer-events:none;
+transition:all .4s ease;
 }
 
-/* 启动按钮 */
+/* 漂浮动画 */
+
+@keyframes float{
+0%{transform:translate(-50%,0)}
+50%{transform:translate(-50%,-12px)}
+100%{transform:translate(-50%,0)}
+}
+
+.float{
+animation:float 3s ease-in-out infinite;
+}
+
+/* 按钮 */
 
 #start{
 position:fixed;
@@ -45,7 +58,7 @@ top:20px;
 left:50%;
 transform:translateX(-50%);
 z-index:10;
-padding:12px 22px;
+padding:12px 24px;
 font-size:16px;
 background:white;
 border:none;
@@ -61,7 +74,7 @@ border-radius:8px;
 
 <video id="camera" autoplay playsinline></video>
 
-<img id="tim" src="tim_idle.png">
+<img id="tim" src="tim_idle.png" class="float">
 
 <audio id="thanks" src="thanks.mp3"></audio>
 
@@ -72,14 +85,16 @@ const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
 const startBtn = document.getElementById("start");
 
-startBtn.onclick = startApp;
+let triggered=false;
+
+startBtn.onclick=startApp;
 
 async function startApp(){
 
 try{
 
 const stream = await navigator.mediaDevices.getUserMedia({
-video:{ facingMode:"environment" },
+video:{facingMode:"environment"},
 audio:true
 });
 
@@ -91,7 +106,7 @@ startBtn.style.display="none";
 
 }catch(e){
 
-alert("Camera permission denied");
+alert("请允许摄像头和麦克风权限");
 
 }
 
@@ -104,29 +119,38 @@ window.SpeechRecognition ||
 window.webkitSpeechRecognition;
 
 if(!SpeechRecognition){
-alert("Browser does not support speech recognition");
+
+alert("当前浏览器不支持语音识别，请使用 Chrome");
+
 return;
+
 }
 
 const recognition = new SpeechRecognition();
 
-recognition.lang = "zh-CN";
-recognition.continuous = true;
+recognition.lang="zh-CN";
+recognition.continuous=true;
+recognition.interimResults=false;
 
-recognition.onresult = function(event){
+recognition.onresult=function(event){
 
-const text =
-event.results[event.resultIndex][0].transcript;
+const text=event.results[event.resultIndex][0].transcript;
 
-console.log(text);
+console.log("识别到:",text);
 
 /* 触发关键词 */
 
 if(
+!triggered &&
+(
 text.includes("生日快乐") ||
 text.includes("提姆生日快乐") ||
+text.includes("祝你生日快乐") ||
 text.includes("happy birthday")
+)
 ){
+
+triggered=true;
 
 triggerTim();
 
@@ -134,11 +158,19 @@ triggerTim();
 
 };
 
+recognition.onerror=function(e){
+console.log("语音识别错误",e);
+};
+
+recognition.onend=function(){
+recognition.start();
+};
+
 recognition.start();
 
 }
 
-/* 触发换图和语音 */
+/* Tim反应 */
 
 function triggerTim(){
 
