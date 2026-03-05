@@ -1,67 +1,154 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Birthday Tim</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tim Birthday</title>
+
+<style>
+
+body{
+margin:0;
+overflow:hidden;
+background:black;
+font-family:sans-serif;
+}
+
+/* 摄像头画面 */
+
+#camera{
+position:fixed;
+top:0;
+left:0;
+width:100vw;
+height:100vh;
+object-fit:cover;
+}
+
+/* Tim透卡 */
+
+#tim{
+position:fixed;
+bottom:8%;
+left:50%;
+transform:translateX(-50%);
+width:60vw;
+max-width:420px;
+pointer-events:none;
+}
+
+/* 启动按钮 */
+
+#start{
+position:fixed;
+top:20px;
+left:50%;
+transform:translateX(-50%);
+z-index:10;
+padding:12px 22px;
+font-size:16px;
+background:white;
+border:none;
+border-radius:8px;
+}
+
+</style>
 </head>
+
 <body>
-    <h1>Welcome to Birthday Tim!</h1>
 
-    <script>
-        // Initialize variables for audio and video streams
-        let audioStream;
-        let videoStream;
+<button id="start">Start</button>
 
-        // Function to separate video and audio streams properly
-        function initializeMedia() {
-            navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-                .then(stream => {
-                    videoStream = stream.getVideoTracks()[0];
-                    audioStream = stream.getAudioTracks()[0];
-                    console.log('Audio and Video streams initialized.');
-                })
-                .catch(err => {
-                    console.error('Error accessing media devices.', err);
-                });
-        }
+<video id="camera" autoplay playsinline></video>
 
-        // Function to handle speech recognition
-        function startRecognition() {
-            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            recognition.continuous = true;
-            recognition.interimResults = false;
+<img id="tim" src="tim_idle.png">
 
-            recognition.onstart = () => {
-                console.log('Speech recognition service has started.');
-            };
+<audio id="thanks" src="thanks.mp3"></audio>
 
-            recognition.onresult = (event) => {
-                const transcript = event.results[event.resultIndex][0].transcript;
-                if (transcript === '生日快乐') {
-                    console.log('Correct phrase detected: 生日快乐');
-                    // Execute your birthday celebration function here
-                }
-            };
+<script>
 
-            recognition.onerror = (event) => {
-                console.error('Speech recognition error detected: ', event.error);
-                // Implement better error handling
-            };
+const video = document.getElementById("camera");
+const tim = document.getElementById("tim");
+const thanks = document.getElementById("thanks");
+const startBtn = document.getElementById("start");
 
-            recognition.onend = () => {
-                console.log('Speech recognition service has stopped. Restarting...');
-                startRecognition(); // Restart logic for continuous recognition
-            };
+startBtn.onclick = startApp;
 
-            recognition.start();
-        }
+async function startApp(){
 
-        // Initialize media and start recognition on page load
-        window.onload = () => {
-            initializeMedia();
-            startRecognition();
-        };
-    </script>
+try{
+
+const stream = await navigator.mediaDevices.getUserMedia({
+video:{ facingMode:"environment" },
+audio:true
+});
+
+video.srcObject = stream;
+
+startRecognition();
+
+startBtn.style.display="none";
+
+}catch(e){
+
+alert("Camera permission denied");
+
+}
+
+}
+
+function startRecognition(){
+
+const SpeechRecognition =
+window.SpeechRecognition ||
+window.webkitSpeechRecognition;
+
+if(!SpeechRecognition){
+alert("Browser does not support speech recognition");
+return;
+}
+
+const recognition = new SpeechRecognition();
+
+recognition.lang = "zh-CN";
+recognition.continuous = true;
+
+recognition.onresult = function(event){
+
+const text =
+event.results[event.resultIndex][0].transcript;
+
+console.log(text);
+
+/* 触发关键词 */
+
+if(
+text.includes("生日快乐") ||
+text.includes("提姆生日快乐") ||
+text.includes("happy birthday")
+){
+
+triggerTim();
+
+}
+
+};
+
+recognition.start();
+
+}
+
+/* 触发换图和语音 */
+
+function triggerTim(){
+
+tim.src="tim_smile.png";
+
+thanks.play();
+
+}
+
+</script>
+
 </body>
 </html>
