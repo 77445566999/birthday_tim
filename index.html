@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,9 +11,9 @@ body{
 margin:0;
 overflow:hidden;
 background:black;
-color:white;
-font-family:sans-serif;
 }
+
+/* 摄像头 */
 
 #camera{
 position:fixed;
@@ -24,6 +24,8 @@ height:100vh;
 object-fit:cover;
 }
 
+/* Tim */
+
 #tim{
 position:fixed;
 bottom:8%;
@@ -33,6 +35,8 @@ width:60vw;
 max-width:420px;
 pointer-events:none;
 }
+
+/* Start按钮 */
 
 #start{
 position:fixed;
@@ -45,18 +49,6 @@ background:white;
 border:none;
 border-radius:8px;
 z-index:10;
-}
-
-#panel{
-position:fixed;
-bottom:20px;
-left:50%;
-transform:translateX(-50%);
-background:rgba(0,0,0,0.6);
-padding:10px 16px;
-border-radius:8px;
-font-size:14px;
-text-align:center;
 }
 
 </style>
@@ -72,115 +64,97 @@ text-align:center;
 
 <audio id="thanks" src="thanks.mp3"></audio>
 
-<div id="panel">
-<div id="status">status: not started</div>
-<div id="text">result:</div>
-</div>
-
 <script>
 
-const video=document.getElementById("camera");
-const tim=document.getElementById("tim");
-const thanks=document.getElementById("thanks");
+const video = document.getElementById("camera");
+const tim = document.getElementById("tim");
+const thanks = document.getElementById("thanks");
+const startBtn = document.getElementById("start");
 
-const startBtn=document.getElementById("start");
-const statusText=document.getElementById("status");
-const resultText=document.getElementById("text");
+let triggered = false;
+let loudStart = null;
 
-let triggered=false;
-
-startBtn.onclick=startApp;
+startBtn.onclick = startApp;
 
 async function startApp(){
 
 try{
 
-const stream=await navigator.mediaDevices.getUserMedia({
+const stream = await navigator.mediaDevices.getUserMedia({
 video:true,
 audio:true
 });
 
-video.srcObject=stream;
+video.srcObject = stream;
 
-startRecognition();
+startVolumeDetect(stream);
 
 startBtn.style.display="none";
 
 }catch(e){
 
-alert("camera and microphone permission required");
+alert("需要摄像头和麦克风权限");
 
 }
 
 }
 
-function startRecognition(){
+function startVolumeDetect(stream){
 
-const SpeechRecognition=
-window.SpeechRecognition||
-window.webkitSpeechRecognition;
+const audioContext = new AudioContext();
 
-if(!SpeechRecognition){
+const mic = audioContext.createMediaStreamSource(stream);
 
-alert("speech recognition not supported");
+const analyser = audioContext.createAnalyser();
 
-return;
+analyser.fftSize = 512;
 
+mic.connect(analyser);
+
+const data = new Uint8Array(analyser.frequencyBinCount);
+
+function detect(){
+
+analyser.getByteFrequencyData(data);
+
+let volume = 0;
+
+for(let i=0;i<data.length;i++){
+volume += data[i];
 }
 
-const recognition=new SpeechRecognition();
+volume = volume / data.length;
 
-recognition.lang="en-US";
-recognition.continuous=true;
-recognition.interimResults=true;
+/* 判断音量 */
 
-recognition.onstart=function(){
+if(volume > 10){
 
-statusText.innerText="status: listening";
+if(!loudStart){
+loudStart = Date.now();
+}
 
-};
+/* 持续3秒 */
 
-recognition.onresult=function(event){
-
-let text=event.results[event.results.length-1][0].transcript;
-
-resultText.innerText="result: "+text;
-
-console.log("recognized:",text);
-
-if(!triggered && text.toLowerCase().includes("happy birthday")){
-
-triggered=true;
-
+if(!triggered && Date.now() - loudStart > 3000){
+triggered = true;
 triggerTim();
+}
+
+}else{
+
+requestAnimationFrame(detect);
 
 }
 
-};
-
-recognition.onerror=function(e){
-
-statusText.innerText="error: "+e.error;
-
-};
-
-recognition.onend=function(){
-
-statusText.innerText="restarting";
-
-recognition.start();
-
-};
-
-recognition.start();
+detect();
 
 }
 
 function triggerTim(){
 
-tim.src="tim_smile.png";
+tim.src = "tim_smile.png";
 
-thanks.currentTime=0;
+thanks.currentTime = 0;
 
 thanks.play();
 
