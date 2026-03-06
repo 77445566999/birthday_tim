@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,8 +15,6 @@ color:white;
 font-family:sans-serif;
 }
 
-/* 摄像头 */
-
 #camera{
 position:fixed;
 top:0;
@@ -25,8 +23,6 @@ width:100vw;
 height:100vh;
 object-fit:cover;
 }
-
-/* Tim */
 
 #tim{
 position:fixed;
@@ -37,8 +33,6 @@ width:60vw;
 max-width:420px;
 pointer-events:none;
 }
-
-/* Start按钮 */
 
 #start{
 position:fixed;
@@ -52,8 +46,6 @@ border:none;
 border-radius:8px;
 z-index:10;
 }
-
-/* 测试面板 */
 
 #panel{
 position:fixed;
@@ -81,19 +73,19 @@ text-align:center;
 <audio id="thanks" src="thanks.mp3"></audio>
 
 <div id="panel">
-<div id="status">状态：未启动</div>
-<div id="text">识别结果：</div>
+<div id="status">status: not started</div>
+<div id="text">result:</div>
 </div>
 
 <script>
 
-const video = document.getElementById("camera");
-const tim = document.getElementById("tim");
-const thanks = document.getElementById("thanks");
+const video=document.getElementById("camera");
+const tim=document.getElementById("tim");
+const thanks=document.getElementById("thanks");
 
-const startBtn = document.getElementById("start");
-const statusText = document.getElementById("status");
-const resultText = document.getElementById("text");
+const startBtn=document.getElementById("start");
+const statusText=document.getElementById("status");
+const resultText=document.getElementById("text");
 
 let triggered=false;
 
@@ -103,12 +95,12 @@ async function startApp(){
 
 try{
 
-const stream = await navigator.mediaDevices.getUserMedia({
+const stream=await navigator.mediaDevices.getUserMedia({
 video:true,
 audio:true
 });
 
-video.srcObject = stream;
+video.srcObject=stream;
 
 startRecognition();
 
@@ -116,7 +108,7 @@ startBtn.style.display="none";
 
 }catch(e){
 
-alert("需要摄像头和麦克风权限");
+alert("camera and microphone permission required");
 
 }
 
@@ -124,27 +116,27 @@ alert("需要摄像头和麦克风权限");
 
 function startRecognition(){
 
-const SpeechRecognition =
-window.SpeechRecognition ||
+const SpeechRecognition=
+window.SpeechRecognition||
 window.webkitSpeechRecognition;
 
 if(!SpeechRecognition){
 
-alert("浏览器不支持语音识别");
+alert("speech recognition not supported");
 
 return;
 
 }
 
-const recognition = new SpeechRecognition();
+const recognition=new SpeechRecognition();
 
-recognition.lang="zh-CN";
+recognition.lang="en-US";
 recognition.continuous=true;
 recognition.interimResults=true;
 
 recognition.onstart=function(){
 
-statusText.innerText="状态：语音识别已启动";
+statusText.innerText="status: listening";
 
 };
 
@@ -152,11 +144,11 @@ recognition.onresult=function(event){
 
 let text=event.results[event.results.length-1][0].transcript;
 
-resultText.innerText="识别结果："+text;
+resultText.innerText="result: "+text;
 
-console.log("识别到:",text);
+console.log("recognized:",text);
 
-if(!triggered && text.includes("生日快乐")){
+if(!triggered && text.toLowerCase().includes("happy birthday")){
 
 triggered=true;
 
@@ -168,15 +160,13 @@ triggerTim();
 
 recognition.onerror=function(e){
 
-statusText.innerText="识别错误："+e.error;
-
-console.log(e);
+statusText.innerText="error: "+e.error;
 
 };
 
 recognition.onend=function(){
 
-statusText.innerText="识别重启中";
+statusText.innerText="restarting";
 
 recognition.start();
 
