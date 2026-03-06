@@ -12,7 +12,6 @@ margin:0;
 overflow:hidden;
 background:black;
 font-family:sans-serif;
-color:white;
 }
 
 /* 摄像头 */
@@ -26,7 +25,7 @@ height:100vh;
 object-fit:cover;
 }
 
-/* Tim透卡 */
+/* Tim */
 
 #tim{
 position:fixed;
@@ -36,22 +35,9 @@ transform:translateX(-50%);
 width:60vw;
 max-width:420px;
 pointer-events:none;
-transition:all .4s ease;
 }
 
-/* 漂浮 */
-
-@keyframes float{
-0%{transform:translate(-50%,0)}
-50%{transform:translate(-50%,-12px)}
-100%{transform:translate(-50%,0)}
-}
-
-.float{
-animation:float 3s ease-in-out infinite;
-}
-
-/* 按钮 */
+/* 启动按钮 */
 
 #start{
 position:fixed;
@@ -66,36 +52,6 @@ border:none;
 border-radius:8px;
 }
 
-/* 提示 */
-
-#hint{
-position:fixed;
-bottom:30%;
-left:50%;
-transform:translateX(-50%);
-background:rgba(0,0,0,0.6);
-padding:10px 18px;
-border-radius:10px;
-font-size:18px;
-}
-
-/* 彩带 */
-
-.confetti{
-position:fixed;
-top:-10px;
-width:8px;
-height:14px;
-opacity:0.9;
-animation:fall linear forwards;
-}
-
-@keyframes fall{
-to{
-transform:translateY(110vh) rotate(360deg);
-}
-}
-
 </style>
 </head>
 
@@ -105,144 +61,102 @@ transform:translateY(110vh) rotate(360deg);
 
 <video id="camera" autoplay playsinline></video>
 
-<img id="tim" src="tim_idle.png" class="float">
+<img id="tim" src="tim_idle.png">
 
 <audio id="thanks" src="thanks.mp3"></audio>
 
-<div id="hint">对着手机说：生日快乐</div>
-
 <script>
 
-const video=document.getElementById("camera");
-const tim=document.getElementById("tim");
-const thanks=document.getElementById("thanks");
-const startBtn=document.getElementById("start");
-const hint=document.getElementById("hint");
+const video = document.getElementById("camera");
+const tim = document.getElementById("tim");
+const thanks = document.getElementById("thanks");
+const startBtn = document.getElementById("start");
 
-let triggered=false;
+let triggered = false;
 
-startBtn.onclick=startApp;
-
-/* 启动 */
+startBtn.onclick = startApp;
 
 async function startApp(){
 
 try{
 
-const stream=await navigator.mediaDevices.getUserMedia({
+const stream = await navigator.mediaDevices.getUserMedia({
 video:{facingMode:"environment"},
 audio:true
 });
 
-video.srcObject=stream;
+video.srcObject = stream;
 
-startAudioDetect(stream);
+startRecognition();
 
 startBtn.style.display="none";
 
 }catch(e){
 
-alert("请允许摄像头和麦克风权限");
+alert("需要摄像头和麦克风权限");
 
 }
 
 }
 
-/* 声音检测 */
+function startRecognition(){
 
-function startAudioDetect(stream){
+const SpeechRecognition =
+window.SpeechRecognition ||
+window.webkitSpeechRecognition;
 
-const audioContext=new AudioContext();
-
-const mic=audioContext.createMediaStreamSource(stream);
-
-const analyser=audioContext.createAnalyser();
-
-analyser.fftSize=512;
-
-mic.connect(analyser);
-
-const data=new Uint8Array(analyser.frequencyBinCount);
-
-let voiceFrames=0;
-
-function detect(){
-
-analyser.getByteFrequencyData(data);
-
-let volume=0;
-
-for(let i=0;i<data.length;i++){
-volume+=data[i];
+if(!SpeechRecognition){
+alert("浏览器不支持语音识别");
+return;
 }
 
-volume=volume/data.length;
+const recognition = new SpeechRecognition();
 
-/* 声音持续检测 */
+recognition.lang="zh-CN";
+recognition.continuous=true;
+recognition.interimResults=true;
 
-if(volume>80){
-voiceFrames++;
-}else{
-voiceFrames=0;
-}
+recognition.onresult=function(event){
 
-/* 持续约0.7秒才触发 */
+const text = event.results[event.results.length-1][0].transcript.toLowerCase();
 
-if(!triggered && voiceFrames>40){
+console.log("识别:",text);
+
+/* 更容易触发 */
+
+if(
+!triggered &&
+(
+text.includes("生日") ||
+text.includes("快乐") ||
+text.includes("happy") ||
+text.includes("birthday")
+)
+){
 
 triggered=true;
-
 triggerTim();
 
 }
 
-requestAnimationFrame(detect);
+};
+
+recognition.onend=function(){
+recognition.start();
+};
+
+recognition.start();
 
 }
 
-detect();
-
-}
-
-/* Tim触发 */
+/* Tim反应 */
 
 function triggerTim(){
 
 tim.src="tim_smile.png";
 
-hint.innerText="生日快乐！";
-
+thanks.currentTime=0;
 thanks.play();
-
-launchConfetti();
-
-}
-
-/* 彩带 */
-
-function launchConfetti(){
-
-for(let i=0;i<80;i++){
-
-const c=document.createElement("div");
-
-c.className="confetti";
-
-c.style.left=Math.random()*100+"vw";
-
-c.style.background=
-`hsl(${Math.random()*360},80%,60%)`;
-
-c.style.animationDuration=
-(3+Math.random()*2)+"s";
-
-document.body.appendChild(c);
-
-setTimeout(()=>{
-c.remove();
-},5000);
-
-}
 
 }
 
