@@ -11,7 +11,6 @@ body{
 margin:0;
 overflow:hidden;
 background:black;
-font-family:sans-serif;
 }
 
 /* 摄像头 */
@@ -44,12 +43,12 @@ position:fixed;
 top:20px;
 left:50%;
 transform:translateX(-50%);
-z-index:10;
 padding:12px 24px;
 font-size:16px;
 background:white;
 border:none;
 border-radius:8px;
+z-index:10;
 }
 
 </style>
@@ -72,22 +71,22 @@ const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
 const startBtn = document.getElementById("start");
 
-let triggered = false;
+let triggered=false;
 
-startBtn.onclick = startApp;
+startBtn.onclick=startApp;
 
 async function startApp(){
 
 try{
 
 const stream = await navigator.mediaDevices.getUserMedia({
-video:{facingMode:"environment"},
+video:true,
 audio:true
 });
 
-video.srcObject = stream;
+video.srcObject=stream;
 
-startRecognition();
+startVolumeDetect(stream);
 
 startBtn.style.display="none";
 
@@ -99,53 +98,51 @@ alert("需要摄像头和麦克风权限");
 
 }
 
-function startRecognition(){
+/* 音量检测 */
 
-const SpeechRecognition =
-window.SpeechRecognition ||
-window.webkitSpeechRecognition;
+function startVolumeDetect(stream){
 
-if(!SpeechRecognition){
-alert("浏览器不支持语音识别");
-return;
+const audioContext = new AudioContext();
+
+const mic = audioContext.createMediaStreamSource(stream);
+
+const analyser = audioContext.createAnalyser();
+
+analyser.fftSize = 512;
+
+mic.connect(analyser);
+
+const data = new Uint8Array(analyser.frequencyBinCount);
+
+function detect(){
+
+analyser.getByteFrequencyData(data);
+
+let volume=0;
+
+for(let i=0;i<data.length;i++){
+
+volume+=data[i];
+
 }
 
-const recognition = new SpeechRecognition();
+volume=volume/data.length;
 
-recognition.lang="zh-CN";
-recognition.continuous=true;
-recognition.interimResults=true;
+/* 阈值 */
 
-recognition.onresult=function(event){
-
-const text = event.results[event.results.length-1][0].transcript.toLowerCase();
-
-console.log("识别:",text);
-
-/* 更容易触发 */
-
-if(
-!triggered &&
-(
-text.includes("生日") ||
-text.includes("快乐") ||
-text.includes("happy") ||
-text.includes("birthday")
-)
-){
+if(!triggered && volume>60){
 
 triggered=true;
+
 triggerTim();
 
 }
 
-};
+requestAnimationFrame(detect);
 
-recognition.onend=function(){
-recognition.start();
-};
+}
 
-recognition.start();
+detect();
 
 }
 
@@ -156,6 +153,7 @@ function triggerTim(){
 tim.src="tim_smile.png";
 
 thanks.currentTime=0;
+
 thanks.play();
 
 }
