@@ -3,29 +3,44 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tim Birthday - Vocal Focus</title>
+<title>Tim Birthday - Dual Cam Focus</title>
 
 <style>
   body { margin: 0; overflow: hidden; background: black; font-family: sans-serif; }
-  #camera { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; }
-  #tim { position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%); width: 60vw; max-width: 420px; pointer-events: none; transition: transform 0.3s; }
-  #start { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 15px 30px; font-size: 18px; font-weight: bold; background: #ff4757; color: white; border: none; border-radius: 50px; z-index: 10; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-  /* 增加一个简单的计数反馈 */
-  #status { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; z-index: 5; display: none; }
+  
+  /* 主屏幕：后置摄像头 */
+  #mainCamera { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; }
+  
+  /* 小屏幕：前置摄像头 (左上角) */
+  #subCamera { 
+    position: fixed; top: 20px; left: 20px; width: 30vw; max-width: 150px; 
+    aspect-ratio: 9/16; object-fit: cover; border: 2px solid white; 
+    border-radius: 12px; z-index: 10; background: #222; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  }
+
+  /* 人物贴图 */
+  #tim { position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%); width: 60vw; max-width: 420px; pointer-events: none; transition: transform 0.3s; z-index: 5; }
+  
+  /* 启动按钮 */
+  #start { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 15px 40px; font-size: 20px; font-weight: bold; background: #ff4757; color: white; border: none; border-radius: 50px; z-index: 100; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+  
+  /* 进度指示器：左下角纯数字 */
+  #status { position: fixed; bottom: 20px; left: 20px; color: rgba(255,255,255,0.7); font-size: 24px; font-weight: bold; z-index: 20; display: none; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }
 </style>
 </head>
 
 <body>
 
-<button id="start">点此开始互动</button>
-<div id="status">喊话进度: <span id="count">0</span>/4</div>
+<button id="start">开始互动</button>
+<div id="status"><span id="count">0</span>/4</div>
 
-<video id="camera" autoplay playsinline></video>
-<img id="tim" src="tim_idle.png">
+<video id="mainCamera" autoplay playsinline></video>
+<video id="subCamera" autoplay playsinline muted></video> <img id="tim" src="tim_idle.png">
 <audio id="thanks" src="thanks.mp3"></audio>
 
 <script>
-const video = document.getElementById("camera");
+const mainVideo = document.getElementById("mainCamera");
+const subVideo = document.getElementById("subCamera");
 const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
 const startBtn = document.getElementById("start");
@@ -40,42 +55,52 @@ startBtn.onclick = startApp;
 
 async function startApp() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: {
-        echoCancellation: true, // 开启自带的回声消除
-        noiseSuppression: true  // 开启自带的降噪
-      }
+    // 1. 请求后置摄像头 (Environment) 用于主屏幕
+    const mainStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: "environment" } },
+      audio: { echoCancellation: true, noiseSuppression: true }
+    }).catch(async () => {
+      // 如果环境强制要求后置失败（如PC端），退而求其次选择默认
+      return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     });
-    video.srcObject = stream;
+    mainVideo.srcObject = mainStream;
 
+    // 2. 请求前置摄像头 (User) 用于左上角小屏幕
+    // 注意：部分手机可能不支持同时打开两个物理摄像头，若失败则不显示小窗
+    try {
+        const subStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" }
+        });
+        subVideo.srcObject = subStream;
+    } catch(err) {
+        console.warn("无法同时开启前置摄像头:", err);
+        subVideo.style.display = "none";
+    }
+
+    // 3. 音频处理
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     await audioContext.resume();
+    startVolumeDetect(mainStream);
 
-    startVolumeDetect(stream);
-
-    startBtn.style.display = "none";
-    statusDiv.style.display = "block";
+    // 4. UI 调整
+    startBtn.style.display = "none"; // 隐藏开始按钮
+    statusDiv.style.display = "block"; // 显示左下角数字
     
   } catch(e) {
-    alert("启动失败，请确保允许麦克风和摄像头权限: " + e.message);
+    alert("启动失败: " + e.message);
   }
 }
 
 function startVolumeDetect(stream) {
   const mic = audioContext.createMediaStreamSource(stream);
-  
-  // --- 核心优化：人声带通滤波器 ---
-  // 人声主要频率在 300Hz - 3400Hz 之间
   const filter = audioContext.createBiquadFilter();
   filter.type = "bandpass"; 
-  filter.frequency.value = 1200; // 中心频率设在人声最集中的 1.2kHz
-  filter.Q.value = 0.8;          // 稍微宽一点的带宽，确保不同音色都能捕捉
+  filter.frequency.value = 1200;
+  filter.Q.value = 0.8;
 
   const analyser = audioContext.createAnalyser();
-  analyser.fftSize = 512; // 减小采样窗口，提高灵敏度
+  analyser.fftSize = 512;
 
-  // 链路：麦克风 -> 滤波器 -> 分析器
   mic.connect(filter);
   filter.connect(analyser);
 
@@ -85,28 +110,18 @@ function startVolumeDetect(stream) {
   function detect() {
     if (triggered) return;
 
-    // 获取频域数据（每个频率点的强度）
     analyser.getByteFrequencyData(data);
-    
-    // 计算当前过滤后频段的平均能量
     let sum = 0;
-    for(let i = 0; i < data.length; i++) {
-      sum += data[i];
-    }
+    for(let i = 0; i < data.length; i++) sum += data[i];
     let averageVolume = sum / data.length;
 
-    // 调试参考：通常安静环境下 averageVolume 会低于 10
-    // 正常说话会瞬间飙升到 40-80 之间
     if(averageVolume > 45 && !isCooldown) { 
       shoutCount++; 
       countSpan.innerText = shoutCount;
-      console.log("检测到有效人声频率, 强度:", Math.floor(averageVolume));
 
-      // 缩短冷却时间至 400ms，让连续喊话感更好，但能防止单次声音被误判为多次
       isCooldown = true;
-      
-      // 动画反馈：Tim 晃动一下表示听到了
       tim.style.transform = "translateX(-50%) scale(1.1)";
+      
       setTimeout(() => {
         tim.style.transform = "translateX(-50%) scale(1.0)";
         isCooldown = false;
@@ -117,10 +132,8 @@ function startVolumeDetect(stream) {
         triggerTim();
       }
     }
-
     requestAnimationFrame(detect);
   }
-
   detect();
 }
 
@@ -128,7 +141,6 @@ function triggerTim(){
   statusDiv.style.display = "none";
   tim.src = "tim_smile.png";
   tim.style.transform = "translateX(-50%) scale(1.2)";
-  thanks.currentTime = 0;
   thanks.play();
 }
 </script>
