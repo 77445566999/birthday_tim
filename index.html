@@ -3,53 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tim Birthday</title>
+<title>Tim Birthday - Vocal Focus</title>
 
 <style>
-body{
-  margin:0;
-  overflow:hidden;
-  background:black;
-}
-
-#camera{
-  position:fixed;
-  top:0;
-  left:0;
-  width:100vw;
-  height:100vh;
-  object-fit:cover;
-}
-
-#tim{
-  position:fixed;
-  bottom:8%;
-  left:50%;
-  transform:translateX(-50%);
-  width:60vw;
-  max-width:420px;
-  pointer-events:none;
-}
-
-#start{
-  position:fixed;
-  top:20px;
-  left:50%;
-  transform:translateX(-50%);
-  padding:12px 24px;
-  font-size:16px;
-  background:white;
-  border:none;
-  border-radius:8px;
-  z-index:10;
-  cursor: pointer;
-}
+  body { margin: 0; overflow: hidden; background: black; font-family: sans-serif; }
+  #camera { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; }
+  #tim { position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%); width: 60vw; max-width: 420px; pointer-events: none; transition: transform 0.3s; }
+  #start { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 15px 30px; font-size: 18px; font-weight: bold; background: #ff4757; color: white; border: none; border-radius: 50px; z-index: 10; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+  /* 增加一个简单的计数反馈 */
+  #status { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; z-index: 5; display: none; }
 </style>
 </head>
 
 <body>
 
-<button id="start">Start</button>
+<button id="start">点此开始互动</button>
+<div id="status">喊话进度: <span id="count">0</span>/4</div>
 
 <video id="camera" autoplay playsinline></video>
 <img id="tim" src="tim_idle.png">
@@ -60,6 +29,8 @@ const video = document.getElementById("camera");
 const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
 const startBtn = document.getElementById("start");
+const statusDiv = document.getElementById("status");
+const countSpan = document.getElementById("count");
 
 let triggered = false;
 let shoutCount = 0; 
@@ -71,7 +42,10 @@ async function startApp() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
-      audio: true
+      audio: {
+        echoCancellation: true, // 开启自带的回声消除
+        noiseSuppression: true  // 开启自带的降噪
+      }
     });
     video.srcObject = stream;
 
@@ -81,54 +55,67 @@ async function startApp() {
     startVolumeDetect(stream);
 
     startBtn.style.display = "none";
+    statusDiv.style.display = "block";
     
   } catch(e) {
-    alert("启动失败: " + e.message);
+    alert("启动失败，请确保允许麦克风和摄像头权限: " + e.message);
   }
 }
 
 function startVolumeDetect(stream) {
   const mic = audioContext.createMediaStreamSource(stream);
+  
+  // --- 核心优化：人声带通滤波器 ---
+  // 人声主要频率在 300Hz - 3400Hz 之间
+  const filter = audioContext.createBiquadFilter();
+  filter.type = "bandpass"; 
+  filter.frequency.value = 1200; // 中心频率设在人声最集中的 1.2kHz
+  filter.Q.value = 0.8;          // 稍微宽一点的带宽，确保不同音色都能捕捉
+
   const analyser = audioContext.createAnalyser();
-  analyser.fftSize = 2048;
-  mic.connect(analyser);
+  analyser.fftSize = 512; // 减小采样窗口，提高灵敏度
+
+  // 链路：麦克风 -> 滤波器 -> 分析器
+  mic.connect(filter);
+  filter.connect(analyser);
 
   const data = new Uint8Array(analyser.frequencyBinCount);
-  
-  let isCooldown = false; // 冷却状态标志
+  let isCooldown = false;
 
   function detect() {
-    analyser.getByteTimeDomainData(data);
+    if (triggered) return;
+
+    // 获取频域数据（每个频率点的强度）
+    analyser.getByteFrequencyData(data);
+    
+    // 计算当前过滤后频段的平均能量
     let sum = 0;
-    for(let i = 0; i < data.length; i++){
-      let v = (data[i] - 128) / 128;
-      sum += v * v;
+    for(let i = 0; i < data.length; i++) {
+      sum += data[i];
     }
-    let volume = Math.sqrt(sum / data.length);
-    let vol100 = volume * 100; 
+    let averageVolume = sum / data.length;
 
-    // --- 核心逻辑：带冷却的触发 ---
-    if(vol100 > 10 && !triggered) { 
+    // 调试参考：通常安静环境下 averageVolume 会低于 10
+    // 正常说话会瞬间飙升到 40-80 之间
+    if(averageVolume > 45 && !isCooldown) { 
+      shoutCount++; 
+      countSpan.innerText = shoutCount;
+      console.log("检测到有效人声频率, 强度:", Math.floor(averageVolume));
+
+      // 缩短冷却时间至 400ms，让连续喊话感更好，但能防止单次声音被误判为多次
+      isCooldown = true;
       
-      // 只有不在冷却期，才计数
-      if (!isCooldown) {
-        shoutCount++; 
-        console.log("检测到第", shoutCount, "次声音");
+      // 动画反馈：Tim 晃动一下表示听到了
+      tim.style.transform = "translateX(-50%) scale(1.1)";
+      setTimeout(() => {
+        tim.style.transform = "translateX(-50%) scale(1.0)";
+        isCooldown = false;
+      }, 400); 
 
-        // 进入冷却期
-        isCooldown = true;
-        
-        // 0.3秒后解除冷却
-        setTimeout(() => {
-          isCooldown = false;
-        }, 300); 
+      if (shoutCount >= 4) {
+        triggered = true; 
+        triggerTim();
       }
-    }
-
-    // --- 检查是否达到4次 ---
-    if (shoutCount >= 4 && !triggered) {
-      triggered = true; 
-      triggerTim();
     }
 
     requestAnimationFrame(detect);
@@ -138,8 +125,9 @@ function startVolumeDetect(stream) {
 }
 
 function triggerTim(){
-  console.log("🎉 触发成功！");
+  statusDiv.style.display = "none";
   tim.src = "tim_smile.png";
+  tim.style.transform = "translateX(-50%) scale(1.2)";
   thanks.currentTime = 0;
   thanks.play();
 }
