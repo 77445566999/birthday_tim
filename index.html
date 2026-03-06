@@ -46,7 +46,7 @@ body{
   cursor: pointer;
 }
 
-/* 简单的调试样式 */
+/* 调试信息样式 */
 #debug {
   position: fixed;
   top: 20px;
@@ -69,7 +69,7 @@ body{
 <img id="tim" src="tim_idle.png">
 <audio id="thanks" src="thanks.mp3"></audio>
 
-<!-- 调试信息显示 -->
+<!-- 屏幕上的调试信息 -->
 <div id="debug">检测次数: <span id="count">0</span> / 4</div>
 
 <script>
@@ -80,7 +80,7 @@ const startBtn = document.getElementById("start");
 const countSpan = document.getElementById("count");
 
 let triggered = false;
-let shoutCount = 0; // 新建一个计数器，记录喊了多少次
+let shoutCount = 0; 
 let audioContext = null; 
 
 startBtn.onclick = startApp;
@@ -112,6 +112,8 @@ function startVolumeDetect(stream) {
   mic.connect(analyser);
 
   const data = new Uint8Array(analyser.frequencyBinCount);
+  
+  let isCooldown = false; // 冷却状态标志
 
   function detect() {
     analyser.getByteTimeDomainData(data);
@@ -123,15 +125,23 @@ function startVolumeDetect(stream) {
     let volume = Math.sqrt(sum / data.length);
     let vol100 = volume * 100; 
 
-    // --- 核心逻辑：检测音量并计数 ---
+    // --- 核心逻辑：带冷却的触发 ---
     if(vol100 > 10 && !triggered) { 
-      shoutCount++; 
-      countSpan.textContent = shoutCount; 
-      console.log("喊了一声，当前次数:", shoutCount);
+      
+      // 只有不在冷却期，才计数
+      if (!isCooldown) {
+        shoutCount++; 
+        countSpan.textContent = shoutCount; 
+        console.log("检测到第", shoutCount, "次声音");
 
-      // 防抖：防止一次大声连续触发多次计数
-      // 检测到一次后，停顿一下，避免在同一声中重复计数
-      setTimeout(() => {}, 500);
+        // 进入冷却期
+        isCooldown = true;
+        
+        // 1秒后解除冷却（防止一次长音算多次）
+        setTimeout(() => {
+          isCooldown = false;
+        }, 1000); 
+      }
     }
 
     // --- 检查是否达到4次 ---
