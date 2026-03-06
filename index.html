@@ -6,51 +6,43 @@
 <title>Tim Birthday</title>
 
 <style>
-
 body{
-margin:0;
-overflow:hidden;
-background:black;
+  margin:0;
+  overflow:hidden;
+  background:black;
 }
-
-/* 摄像头 */
 
 #camera{
-position:fixed;
-top:0;
-left:0;
-width:100vw;
-height:100vh;
-object-fit:cover;
+  position:fixed;
+  top:0;
+  left:0;
+  width:100vw;
+  height:100vh;
+  object-fit:cover;
 }
-
-/* Tim */
 
 #tim{
-position:fixed;
-bottom:8%;
-left:50%;
-transform:translateX(-50%);
-width:60vw;
-max-width:420px;
-pointer-events:none;
+  position:fixed;
+  bottom:8%;
+  left:50%;
+  transform:translateX(-50%);
+  width:60vw;
+  max-width:420px;
+  pointer-events:none;
 }
-
-/* Start按钮 */
 
 #start{
-position:fixed;
-top:20px;
-left:50%;
-transform:translateX(-50%);
-padding:12px 24px;
-font-size:16px;
-background:white;
-border:none;
-border-radius:8px;
-z-index:10;
+  position:fixed;
+  top:20px;
+  left:50%;
+  transform:translateX(-50%);
+  padding:12px 24px;
+  font-size:16px;
+  background:white;
+  border:none;
+  border-radius:8px;
+  z-index:10;
 }
-
 </style>
 </head>
 
@@ -59,13 +51,10 @@ z-index:10;
 <button id="start">Start</button>
 
 <video id="camera" autoplay playsinline></video>
-
 <img id="tim" src="tim_idle.png">
-
 <audio id="thanks" src="thanks.mp3"></audio>
 
 <script>
-
 const video = document.getElementById("camera");
 const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
@@ -76,90 +65,66 @@ let loudStart = null;
 
 startBtn.onclick = startApp;
 
-async function startApp(){
+async function startApp() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    });
+    video.srcObject = stream;
 
-try{
+    startVolumeDetect(stream);
 
-const stream = await navigator.mediaDevices.getUserMedia({
-video:true,
-audio:true
-});
-
-video.srcObject = stream;
-
-startVolumeDetect(stream);
-
-startBtn.style.display="none";
-
-}catch(e){
-
-alert("需要摄像头和麦克风权限");
-
+    startBtn.style.display = "none";
+  } catch(e) {
+    alert("请允许摄像头和麦克风权限");
+  }
 }
 
-}
+function startVolumeDetect(stream) {
+  const audioContext = new AudioContext();
+  const mic = audioContext.createMediaStreamSource(stream);
+  const analyser = audioContext.createAnalyser();
+  analyser.fftSize = 2048;
+  mic.connect(analyser);
 
-function startVolumeDetect(stream){
+  const data = new Uint8Array(analyser.fftSize);
 
-const audioContext = new AudioContext();
+  function detect() {
+    analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for(let i=0; i<data.length; i++){
+      let v = (data[i] - 128) / 128;
+      sum += v*v;
+    }
+    let volume = Math.sqrt(sum / data.length);
 
-const mic = audioContext.createMediaStreamSource(stream);
+    // 振幅 * 100 方便理解阈值为10
+    let vol100 = volume * 100;
 
-const analyser = audioContext.createAnalyser();
+    if(vol100 > 10){
+      if(!loudStart){
+        loudStart = Date.now();
+      }
+      if(!triggered && Date.now() - loudStart > 2000){ // 持续2秒
+        triggered = true;
+        triggerTim();
+      }
+    } else {
+      loudStart = null;
+    }
 
-analyser.fftSize = 512;
+    requestAnimationFrame(detect);
+  }
 
-mic.connect(analyser);
-
-const data = new Uint8Array(analyser.frequencyBinCount);
-
-function detect(){
-
-analyser.getByteFrequencyData(data);
-
-let volume = 0;
-
-for(let i=0;i<data.length;i++){
-volume += data[i];
-}
-
-volume = volume / data.length;
-
-/* 判断音量 */
-
-if(volume > 10){
-
-if(!loudStart){
-loudStart = Date.now();
-}
-
-/* 持续3秒 */
-
-if(!triggered && Date.now() - loudStart > 3000){
-triggered = true;
-triggerTim();
-}
-
-}else{
-
-requestAnimationFrame(detect);
-
-}
-
-detect();
-
+  detect();
 }
 
 function triggerTim(){
-
-tim.src = "tim_smile.png";
-
-thanks.currentTime = 0;
-
-thanks.play();
-
+  tim.src = "tim_smile.png";
+  thanks.currentTime = 0;
+  thanks.play();
 }
-
 </script>
 
 </body>
