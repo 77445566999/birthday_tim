@@ -24,7 +24,7 @@ height:100vh;
 object-fit:cover;
 }
 
-/* Tim透卡 */
+/* Tim */
 
 #tim{
 position:fixed;
@@ -87,7 +87,7 @@ audio:true
 
 video.srcObject = stream;
 
-startVoiceDetect(stream);
+startVolumeDetect(stream);
 
 startBtn.style.display="none";
 
@@ -99,7 +99,7 @@ alert("需要摄像头和麦克风权限");
 
 }
 
-function startVoiceDetect(stream){
+function startVolumeDetect(stream){
 
 const audioContext = new AudioContext();
 
@@ -107,47 +107,42 @@ const mic = audioContext.createMediaStreamSource(stream);
 
 const analyser = audioContext.createAnalyser();
 
-analyser.fftSize = 2048;
+analyser.fftSize = 512;
 
 mic.connect(analyser);
 
-const data = new Uint8Array(analyser.fftSize);
+const data = new Uint8Array(analyser.frequencyBinCount);
 
 function detect(){
 
-analyser.getByteTimeDomainData(data);
+analyser.getByteFrequencyData(data);
 
-let sum = 0;
+let volume = 0;
 
 for(let i=0;i<data.length;i++){
-
-let v = (data[i] - 128) / 128;
-
-sum += v*v;
-
+volume += data[i];
 }
 
-let volume = Math.sqrt(sum / data.length);
+volume = volume / data.length;
 
-/* 振幅判断 */
+/* 判断音量 */
 
-if(volume > 0.03){
+if(volume > 20){
 
 if(!loudStart){
 loudStart = Date.now();
 }
 
-/* 连续3秒 */
+/* 持续3秒 */
 
 if(!triggered && Date.now() - loudStart > 3000){
-
 triggered = true;
-
 triggerTim();
-
 }
 
 }else{
+
+/* 声音断开重新计时 */
 
 loudStart = null;
 
