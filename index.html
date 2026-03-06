@@ -10,7 +10,6 @@ body{
   margin:0;
   overflow:hidden;
   background:black;
-  position: relative;
 }
 
 #camera{
@@ -45,19 +44,6 @@ body{
   z-index:10;
   cursor: pointer;
 }
-
-/* 调试信息样式 */
-#debug {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  color: white;
-  font-family: monospace;
-  background: rgba(0,0,0,0.7);
-  padding: 10px;
-  border-radius: 5px;
-  z-index: 999;
-}
 </style>
 </head>
 
@@ -69,15 +55,11 @@ body{
 <img id="tim" src="tim_idle.png">
 <audio id="thanks" src="thanks.mp3"></audio>
 
-<!-- 屏幕上的调试信息 -->
-<div id="debug">检测次数: <span id="count">0</span> / 4</div>
-
 <script>
 const video = document.getElementById("camera");
 const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
 const startBtn = document.getElementById("start");
-const countSpan = document.getElementById("count");
 
 let triggered = false;
 let shoutCount = 0; 
@@ -131,16 +113,15 @@ function startVolumeDetect(stream) {
       // 只有不在冷却期，才计数
       if (!isCooldown) {
         shoutCount++; 
-        countSpan.textContent = shoutCount; 
         console.log("检测到第", shoutCount, "次声音");
 
         // 进入冷却期
         isCooldown = true;
         
-        // 1秒后解除冷却（防止一次长音算多次）
+        // 0.3秒后解除冷却
         setTimeout(() => {
           isCooldown = false;
-        }, 1000); 
+        }, 300); 
       }
     }
 
