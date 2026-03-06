@@ -51,12 +51,29 @@ border-radius:8px;
 z-index:10;
 }
 
+/* 音量测试面板 */
+
+#debug{
+position:fixed;
+top:20px;
+left:20px;
+color:#00ff9c;
+font-size:18px;
+font-family:monospace;
+background:rgba(0,0,0,0.5);
+padding:10px 14px;
+border-radius:8px;
+z-index:20;
+}
+
 </style>
 </head>
 
 <body>
 
 <button id="start">Start</button>
+
+<div id="debug">Volume: 0</div>
 
 <video id="camera" autoplay playsinline></video>
 
@@ -70,6 +87,7 @@ const video = document.getElementById("camera");
 const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
 const startBtn = document.getElementById("start");
+const debug = document.getElementById("debug");
 
 let triggered=false;
 
@@ -121,16 +139,18 @@ analyser.getByteFrequencyData(data);
 let volume=0;
 
 for(let i=0;i<data.length;i++){
-
 volume+=data[i];
-
 }
 
 volume=volume/data.length;
 
-/* 阈值 */
+/* 显示实时音量 */
 
-if(!triggered && volume>60){
+debug.innerText="Volume: "+Math.round(volume);
+
+/* 触发阈值 */
+
+if(!triggered && volume>30){
 
 triggered=true;
 
