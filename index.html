@@ -46,32 +46,17 @@ body{
   cursor: pointer;
 }
 
-/* 新增：调试信息的样式 */
+/* 简单的调试样式 */
 #debug {
   position: fixed;
   top: 20px;
   left: 20px;
   color: white;
   font-family: monospace;
-  font-size: 14px;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.7);
   padding: 10px;
   border-radius: 5px;
   z-index: 999;
-}
-#volume-bar {
-  width: 100px;
-  height: 20px;
-  background: #333;
-  border: 1px solid #555;
-  margin-top: 5px;
-  overflow: hidden;
-}
-#volume-fill {
-  height: 100%;
-  width: 0%;
-  background: red;
-  transition: width 0.1s;
 }
 </style>
 </head>
@@ -82,26 +67,20 @@ body{
 
 <video id="camera" autoplay playsinline></video>
 <img id="tim" src="tim_idle.png">
-
-<!-- 新增：调试显示区域 -->
-<div id="debug">
-  实时音量: <span id="volume-text">0</span>
-  <div id="volume-bar"><div id="volume-fill"></div></div>
-</div>
-
 <audio id="thanks" src="thanks.mp3"></audio>
+
+<!-- 调试信息显示 -->
+<div id="debug">检测次数: <span id="count">0</span> / 4</div>
 
 <script>
 const video = document.getElementById("camera");
 const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
 const startBtn = document.getElementById("start");
-// 获取调试元素
-const volumeText = document.getElementById("volume-text");
-const volumeFill = document.getElementById("volume-fill");
+const countSpan = document.getElementById("count");
 
 let triggered = false;
-let loudStart = null;
+let shoutCount = 0; // 新建一个计数器，记录喊了多少次
 let audioContext = null; 
 
 startBtn.onclick = startApp;
@@ -122,7 +101,6 @@ async function startApp() {
     startBtn.style.display = "none";
     
   } catch(e) {
-    console.error("启动失败:", e);
     alert("启动失败: " + e.message);
   }
 }
@@ -143,21 +121,23 @@ function startVolumeDetect(stream) {
       sum += v * v;
     }
     let volume = Math.sqrt(sum / data.length);
-    // 计算出 0-100 的数值
     let vol100 = volume * 100; 
 
-    // --- 核心改动：实时显示音量 ---
-    volumeText.textContent = vol100.toFixed(2);
-    // 限制最大宽度为 100%
-    volumeFill.style.width = Math.min(vol100, 100) + '%';
+    // --- 核心逻辑：检测音量并计数 ---
+    if(vol100 > 10 && !triggered) { 
+      shoutCount++; 
+      countSpan.textContent = shoutCount; 
+      console.log("喊了一声，当前次数:", shoutCount);
 
-    // --- 核心改动：把阈值降到 1，并且只要超过就立刻触发，不再等 2 秒 ---
-    // 如果 vol100 大于 1 (非常容易达到)，且还没触发过
-    if(vol100 > 1){
-      if(!triggered){
-        triggered = true;
-        triggerTim();
-      }
+      // 防抖：防止一次大声连续触发多次计数
+      // 检测到一次后，停顿一下，避免在同一声中重复计数
+      setTimeout(() => {}, 500);
+    }
+
+    // --- 检查是否达到4次 ---
+    if (shoutCount >= 4 && !triggered) {
+      triggered = true; 
+      triggerTim();
     }
 
     requestAnimationFrame(detect);
@@ -167,14 +147,10 @@ function startVolumeDetect(stream) {
 }
 
 function triggerTim(){
-  console.log("🎉 触发函数执行了");
-  // --- 核心改动：加一个 alert，确认是不是图片路径的问题 ---
-  // 如果弹出这个，说明逻辑走通了，只是图片没加载出来
-  alert("触发成功！正在尝试切换图片");
-
+  console.log("🎉 触发成功！");
   tim.src = "tim_smile.png";
   thanks.currentTime = 0;
-  thanks.play().catch(e => console.log("音频播放失败:", e));
+  thanks.play();
 }
 </script>
 
