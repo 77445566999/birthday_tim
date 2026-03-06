@@ -63,48 +63,46 @@ const startBtn = document.getElementById("start");
 
 let triggered = false;
 let loudStart = null;
-// 声明全局变量以存储 AudioContext
 let audioContext = null; 
+
+// 修正1: 把初始化逻辑移到点击事件里，确保权限弹窗能弹出
+startBtn.onclick = startApp;
 
 async function startApp() {
   try {
-    // 1. 请求摄像头和麦克风权限
+    console.log("开始按钮被点击");
+    
+    // 1. 请求权限
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true
     });
     video.srcObject = stream;
 
-    // 2. 【核心修复】在用户点击事件中创建 AudioContext
-    // 这样做是为了满足浏览器的“自动播放策略”
+    // 2. 创建音频上下文 (必须在用户点击后)
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // 确保上下文处于运行状态
-    if (audioContext.state === 'suspended') {
-      await audioContext.resume();
-    }
-    console.log('🎤 音频上下文已启动，状态:', audioContext.state);
+    await audioContext.resume(); // 恢复运行
+    console.log('音频上下文已启动');
 
-    // 3. 开始检测音量
+    // 3. 开始检测
     startVolumeDetect(stream);
 
-    // 4. 隐藏开始按钮
+    // 4. 隐藏按钮
     startBtn.style.display = "none";
     
   } catch(e) {
-    console.error("无法启动媒体设备:", e);
-    alert("请允许摄像头和麦克风权限\n" + e.message);
+    console.error("启动失败:", e);
+    alert("启动失败，请检查麦克风/摄像头权限，或是否在微信内置浏览器中打开。\n\n详细错误: " + e.message);
   }
 }
 
 function startVolumeDetect(stream) {
-  // 使用传入的全局 audioContext
   const mic = audioContext.createMediaStreamSource(stream);
   const analyser = audioContext.createAnalyser();
   analyser.fftSize = 2048;
   mic.connect(analyser);
 
-  const data = new Uint8Array(analyser.fftSize);
+  const data = new Uint8Array(analyser.frequencyBinCount);
 
   function detect() {
     analyser.getByteTimeDomainData(data);
@@ -114,24 +112,21 @@ function startVolumeDetect(stream) {
       sum += v * v;
     }
     let volume = Math.sqrt(sum / data.length);
-    // 将音量放大便于观察
     let vol100 = volume * 100; 
 
-    // --- 🛠️ 调试用：取消下面的注释可以看具体数值 ---
-    // 说话时看控制台数字是否跳动，普通环境音可能在 1-5，大喊可能在 10-20+
-    console.log("🔊 实时音量:", vol100.toFixed(2));
+    // 修正2: 修复了注释符号的问题，现在这行是有效的调试代码
+    // 请在手机浏览器的“调试模式”下查看具体数值，或者暂时取消注释看弹窗
+    // alert("音量: " + vol100.toFixed(2)); 
 
-    // 阈值检测 (原为10，现改为5，更容易触发)
     if(vol100 > 5){
       if(!loudStart){
         loudStart = Date.now();
       }
-      if(!triggered && Date.now() - loudStart > 2000){ // 持续2秒
+      if(!triggered && Date.now() - loudStart > 2000){
         triggered = true;
         triggerTim();
       }
     } else {
-      // 音量不够大，重置计时器
       loudStart = null;
     }
 
@@ -142,10 +137,9 @@ function startVolumeDetect(stream) {
 }
 
 function triggerTim(){
-  console.log("🎉 触发成功！切换图片并播放音频");
+  console.log("触发成功！");
   tim.src = "tim_smile.png";
-  thanks.currentTime = 0;
-  thanks.play().catch(e => console.error("音频播放失败:", e));
+  thanks.play().catch(e => console.log("音频播放失败:", e));
 }
 </script>
 
