@@ -24,7 +24,7 @@ height:100vh;
 object-fit:cover;
 }
 
-/* Tim */
+/* Tim透卡 */
 
 #tim{
 position:fixed;
@@ -36,7 +36,7 @@ max-width:420px;
 pointer-events:none;
 }
 
-/* 启动按钮 */
+/* Start按钮 */
 
 #start{
 position:fixed;
@@ -51,29 +51,12 @@ border-radius:8px;
 z-index:10;
 }
 
-/* 音量测试面板 */
-
-#debug{
-position:fixed;
-top:20px;
-left:20px;
-color:#00ff9c;
-font-size:18px;
-font-family:monospace;
-background:rgba(0,0,0,0.5);
-padding:10px 14px;
-border-radius:8px;
-z-index:20;
-}
-
 </style>
 </head>
 
 <body>
 
 <button id="start">Start</button>
-
-<div id="debug">Volume: 0</div>
 
 <video id="camera" autoplay playsinline></video>
 
@@ -87,11 +70,11 @@ const video = document.getElementById("camera");
 const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
 const startBtn = document.getElementById("start");
-const debug = document.getElementById("debug");
 
-let triggered=false;
+let triggered = false;
+let loudStart = null;
 
-startBtn.onclick=startApp;
+startBtn.onclick = startApp;
 
 async function startApp(){
 
@@ -102,9 +85,9 @@ video:true,
 audio:true
 });
 
-video.srcObject=stream;
+video.srcObject = stream;
 
-startVolumeDetect(stream);
+startVoiceDetect(stream);
 
 startBtn.style.display="none";
 
@@ -116,9 +99,7 @@ alert("需要摄像头和麦克风权限");
 
 }
 
-/* 音量检测 */
-
-function startVolumeDetect(stream){
+function startVoiceDetect(stream){
 
 const audioContext = new AudioContext();
 
@@ -126,35 +107,49 @@ const mic = audioContext.createMediaStreamSource(stream);
 
 const analyser = audioContext.createAnalyser();
 
-analyser.fftSize = 512;
+analyser.fftSize = 2048;
 
 mic.connect(analyser);
 
-const data = new Uint8Array(analyser.frequencyBinCount);
+const data = new Uint8Array(analyser.fftSize);
 
 function detect(){
 
-analyser.getByteFrequencyData(data);
+analyser.getByteTimeDomainData(data);
 
-let volume=0;
+let sum = 0;
 
 for(let i=0;i<data.length;i++){
-volume+=data[i];
+
+let v = (data[i] - 128) / 128;
+
+sum += v*v;
+
 }
 
-volume=volume/data.length;
+let volume = Math.sqrt(sum / data.length);
 
-/* 显示实时音量 */
+/* 振幅判断 */
 
-debug.innerText="Volume: "+Math.round(volume);
+if(volume > 0.03){
 
-/* 触发阈值 */
+if(!loudStart){
+loudStart = Date.now();
+}
 
-if(!triggered && volume>30){
+/* 连续3秒 */
 
-triggered=true;
+if(!triggered && Date.now() - loudStart > 3000){
+
+triggered = true;
 
 triggerTim();
+
+}
+
+}else{
+
+loudStart = null;
 
 }
 
@@ -166,13 +161,11 @@ detect();
 
 }
 
-/* Tim反应 */
-
 function triggerTim(){
 
-tim.src="tim_smile.png";
+tim.src = "tim_smile.png";
 
-thanks.currentTime=0;
+thanks.currentTime = 0;
 
 thanks.play();
 
