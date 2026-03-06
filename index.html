@@ -10,6 +10,7 @@ body{
   margin:0;
   overflow:hidden;
   background:black;
+  position: relative;
 }
 
 #camera{
@@ -44,6 +45,34 @@ body{
   z-index:10;
   cursor: pointer;
 }
+
+/* 新增：调试信息的样式 */
+#debug {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  color: white;
+  font-family: monospace;
+  font-size: 14px;
+  background: rgba(0,0,0,0.5);
+  padding: 10px;
+  border-radius: 5px;
+  z-index: 999;
+}
+#volume-bar {
+  width: 100px;
+  height: 20px;
+  background: #333;
+  border: 1px solid #555;
+  margin-top: 5px;
+  overflow: hidden;
+}
+#volume-fill {
+  height: 100%;
+  width: 0%;
+  background: red;
+  transition: width 0.1s;
+}
 </style>
 </head>
 
@@ -53,6 +82,13 @@ body{
 
 <video id="camera" autoplay playsinline></video>
 <img id="tim" src="tim_idle.png">
+
+<!-- 新增：调试显示区域 -->
+<div id="debug">
+  实时音量: <span id="volume-text">0</span>
+  <div id="volume-bar"><div id="volume-fill"></div></div>
+</div>
+
 <audio id="thanks" src="thanks.mp3"></audio>
 
 <script>
@@ -60,39 +96,34 @@ const video = document.getElementById("camera");
 const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
 const startBtn = document.getElementById("start");
+// 获取调试元素
+const volumeText = document.getElementById("volume-text");
+const volumeFill = document.getElementById("volume-fill");
 
 let triggered = false;
 let loudStart = null;
 let audioContext = null; 
 
-// 修正1: 把初始化逻辑移到点击事件里，确保权限弹窗能弹出
 startBtn.onclick = startApp;
 
 async function startApp() {
   try {
-    console.log("开始按钮被点击");
-    
-    // 1. 请求权限
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true
     });
     video.srcObject = stream;
 
-    // 2. 创建音频上下文 (必须在用户点击后)
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    await audioContext.resume(); // 恢复运行
-    console.log('音频上下文已启动');
+    await audioContext.resume();
 
-    // 3. 开始检测
     startVolumeDetect(stream);
 
-    // 4. 隐藏按钮
     startBtn.style.display = "none";
     
   } catch(e) {
     console.error("启动失败:", e);
-    alert("启动失败，请检查麦克风/摄像头权限，或是否在微信内置浏览器中打开。\n\n详细错误: " + e.message);
+    alert("启动失败: " + e.message);
   }
 }
 
@@ -112,22 +143,21 @@ function startVolumeDetect(stream) {
       sum += v * v;
     }
     let volume = Math.sqrt(sum / data.length);
+    // 计算出 0-100 的数值
     let vol100 = volume * 100; 
 
-    // 修正2: 修复了注释符号的问题，现在这行是有效的调试代码
-    // 请在手机浏览器的“调试模式”下查看具体数值，或者暂时取消注释看弹窗
-    // alert("音量: " + vol100.toFixed(2)); 
+    // --- 核心改动：实时显示音量 ---
+    volumeText.textContent = vol100.toFixed(2);
+    // 限制最大宽度为 100%
+    volumeFill.style.width = Math.min(vol100, 100) + '%';
 
-    if(vol100 > 5){
-      if(!loudStart){
-        loudStart = Date.now();
-      }
-      if(!triggered && Date.now() - loudStart > 2000){
+    // --- 核心改动：把阈值降到 1，并且只要超过就立刻触发，不再等 2 秒 ---
+    // 如果 vol100 大于 1 (非常容易达到)，且还没触发过
+    if(vol100 > 1){
+      if(!triggered){
         triggered = true;
         triggerTim();
       }
-    } else {
-      loudStart = null;
     }
 
     requestAnimationFrame(detect);
@@ -137,8 +167,13 @@ function startVolumeDetect(stream) {
 }
 
 function triggerTim(){
-  console.log("触发成功！");
+  console.log("🎉 触发函数执行了");
+  // --- 核心改动：加一个 alert，确认是不是图片路径的问题 ---
+  // 如果弹出这个，说明逻辑走通了，只是图片没加载出来
+  alert("触发成功！正在尝试切换图片");
+
   tim.src = "tim_smile.png";
+  thanks.currentTime = 0;
   thanks.play().catch(e => console.log("音频播放失败:", e));
 }
 </script>
