@@ -11,6 +11,8 @@ body{
 margin:0;
 overflow:hidden;
 background:black;
+color:white;
+font-family:sans-serif;
 }
 
 /* 摄像头 */
@@ -51,6 +53,20 @@ border-radius:8px;
 z-index:10;
 }
 
+/* 测试面板 */
+
+#panel{
+position:fixed;
+bottom:20px;
+left:50%;
+transform:translateX(-50%);
+background:rgba(0,0,0,0.6);
+padding:10px 16px;
+border-radius:8px;
+font-size:14px;
+text-align:center;
+}
+
 </style>
 </head>
 
@@ -64,17 +80,24 @@ z-index:10;
 
 <audio id="thanks" src="thanks.mp3"></audio>
 
+<div id="panel">
+<div id="status">状态：未启动</div>
+<div id="text">识别结果：</div>
+</div>
+
 <script>
 
 const video = document.getElementById("camera");
 const tim = document.getElementById("tim");
 const thanks = document.getElementById("thanks");
+
 const startBtn = document.getElementById("start");
+const statusText = document.getElementById("status");
+const resultText = document.getElementById("text");
 
-let triggered = false;
-let loudStart = null;
+let triggered=false;
 
-startBtn.onclick = startApp;
+startBtn.onclick=startApp;
 
 async function startApp(){
 
@@ -87,7 +110,7 @@ audio:true
 
 video.srcObject = stream;
 
-startVolumeDetect(stream);
+startRecognition();
 
 startBtn.style.display="none";
 
@@ -99,68 +122,75 @@ alert("需要摄像头和麦克风权限");
 
 }
 
-function startVolumeDetect(stream){
+function startRecognition(){
 
-const audioContext = new AudioContext();
+const SpeechRecognition =
+window.SpeechRecognition ||
+window.webkitSpeechRecognition;
 
-const mic = audioContext.createMediaStreamSource(stream);
+if(!SpeechRecognition){
 
-const analyser = audioContext.createAnalyser();
+alert("浏览器不支持语音识别");
 
-analyser.fftSize = 512;
+return;
 
-mic.connect(analyser);
-
-const data = new Uint8Array(analyser.frequencyBinCount);
-
-function detect(){
-
-analyser.getByteFrequencyData(data);
-
-let volume = 0;
-
-for(let i=0;i<data.length;i++){
-volume += data[i];
 }
 
-volume = volume / data.length;
+const recognition = new SpeechRecognition();
 
-/* 判断音量 */
+recognition.lang="zh-CN";
+recognition.continuous=true;
+recognition.interimResults=true;
 
-if(volume > 20){
+recognition.onstart=function(){
 
-if(!loudStart){
-loudStart = Date.now();
-}
+statusText.innerText="状态：语音识别已启动";
 
-/* 持续3秒 */
+};
 
-if(!triggered && Date.now() - loudStart > 3000){
-triggered = true;
+recognition.onresult=function(event){
+
+let text=event.results[event.results.length-1][0].transcript;
+
+resultText.innerText="识别结果："+text;
+
+console.log("识别到:",text);
+
+if(!triggered && text.includes("生日快乐")){
+
+triggered=true;
+
 triggerTim();
-}
-
-}else{
-
-/* 声音断开重新计时 */
-
-loudStart = null;
 
 }
 
-requestAnimationFrame(detect);
+};
 
-}
+recognition.onerror=function(e){
 
-detect();
+statusText.innerText="识别错误："+e.error;
+
+console.log(e);
+
+};
+
+recognition.onend=function(){
+
+statusText.innerText="识别重启中";
+
+recognition.start();
+
+};
+
+recognition.start();
 
 }
 
 function triggerTim(){
 
-tim.src = "tim_smile.png";
+tim.src="tim_smile.png";
 
-thanks.currentTime = 0;
+thanks.currentTime=0;
 
 thanks.play();
 
